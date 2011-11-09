@@ -1,0 +1,18 @@
+﻿<Window x:Class="ggUI.options"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="options" Height="360" Width="360" Loaded="Window_Loaded" ShowInTaskbar="False" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Name="winopt" Topmost="True">
+        <Grid Background="White" Margin="0,40,0,0" Height="280" Width="280" Name="optgrid">
+        <CheckBox Content="Run on startup" Height="23" HorizontalAlignment="Left" Margin="40,40,0,0" Name="chkStartup" VerticalAlignment="Top" Width="125" Checked="chkStartup_Checked" Unchecked="chkStartup_Unchecked" />
+        <TextBox TextAlignment="Center" Height="23" Width="75" HorizontalAlignment="Left" Margin="40,80,0,0" Name="txtHotkeyShow" Text="" VerticalAlignment="Top" BorderBrush="LightGray" PreviewKeyDown="txtHotkeyShow_KeyDown" />
+        <Label Content="Hide/Show Hotkey" Height="30" HorizontalAlignment="Left" Margin="115,80,0,0" Name="lblHotkeyShow" VerticalAlignment="Top" Width="120" />
+        <TextBox TextAlignment="Center" Height="23" Width="75" HorizontalAlignment="Left" Margin="40,120,0,0" Name="txtHotkeyExit" Text="" VerticalAlignment="Top" BorderBrush="LightGray" PreviewKeyDown="txtHotkeyExit_KeyDown" />
+        <Label Content="Exit Hotkey" Height="30" HorizontalAlignment="Left" Margin="115,120,0,0" Name="lblHotkeyExit" VerticalAlignment="Top" Width="120" />
+        <TextBox TextAlignment="Center" Height="23" Width="75" HorizontalAlignment="Left" Margin="40,160,0,0" Name="txtHotkeyScroll" Text="" VerticalAlignment="Top" BorderBrush="LightGray" PreviewKeyDown="txtHotkeyScroll_KeyDown" />
+        <Label Content="Scroll Hotkey" Height="30" HorizontalAlignment="Left" Margin="115,160,0,0" Name="lblHotkeyScroll" VerticalAlignment="Top" Width="120" />
+        <Button Content="Save" Height="23" HorizontalAlignment="Left" Margin="40,200,0,0" Name="btnSave" VerticalAlignment="Top" Width="75" Click="btnSave_Click" />
+    </Grid>
+    <Window.Effect>
+        <DropShadowEffect ShadowDepth="0" Opacity="1" BlurRadius="30" Color="Black"/>
+    </Window.Effect>
+</Window>
