@@ -1,0 +1,161 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Diagnostics;
+
+namespace gg
+{
+    public class GGItem : IComparable<GGItem>
+    {
+        private string description;
+        private DateTime endDate;
+        private string tag;
+        // last modified time at local
+        private DateTime lastModifiedTime;
+        // absolute url of the coresponding event on Google Calendar; empty if not synced
+        private string eventAbsoluteUrl;
+
+        public static DateTime DEFAULT_ENDDATE = DateTime.MinValue;
+
+        public GGItem()
+        {
+           
+        }
+
+        public GGItem(string description)
+            : this(description,
+                DEFAULT_ENDDATE, "misc", DateTime.Now, string.Empty) { }
+
+        public GGItem(string description, DateTime endDate) 
+            : this(description, 
+                endDate, "misc", DateTime.Now, string.Empty) { }
+
+        public GGItem(string description, DateTime endDate, string tag)
+            : this(description, endDate, tag, DateTime.Now, string.Empty) { }
+
+        public GGItem(string description, DateTime endDate, string tag, DateTime lastModifiedTime, string url)
+        {
+            this.description = description;
+            this.endDate = endDate;
+            this.tag = tag;
+            this.lastModifiedTime = lastModifiedTime;
+            this.eventAbsoluteUrl = url;
+        }
+
+        public string GetDescription()
+        {
+            return this.description;
+        }
+
+        public void SetDescription(string description)
+        {
+            this.description = description;
+            lastModifiedTime = DateTime.Now;
+        }
+
+        public DateTime GetEndDate()
+        {
+            return this.endDate;
+        }
+
+        public void SetEndDate(DateTime endDate)
+        {
+            this.endDate = endDate;
+            lastModifiedTime = DateTime.Now;
+        }
+
+        public string GetTag()
+        {
+            return this.tag;
+        }
+
+        public void SetTag(string tag)
+        {
+            this.tag = tag;
+            lastModifiedTime = DateTime.Now;
+        }
+
+        public DateTime GetLastModifiedTime()
+        {
+            return this.lastModifiedTime;
+        }
+
+        public void SetLastModifiedTime(DateTime lastModifiedTime)
+        {
+            this.lastModifiedTime = lastModifiedTime;
+        }
+
+        public string GetEventAbsoluteUrl()
+        {
+            return this.eventAbsoluteUrl;
+        }
+
+        public void SetEventAbsoluteUrl(string eventAbsoluteUrl)
+        {
+            this.eventAbsoluteUrl = eventAbsoluteUrl;
+        }
+
+        public override string ToString()
+        {
+            bool itemContainsOnlyDescription = tag.Equals("misc") && endDate.Equals(DateTime.MinValue);
+            bool itemContainsDateButNoTag = tag.Equals("misc") && endDate != DateTime.MinValue;
+            bool itemContainsTagButNoDate = !tag.Equals("misc") && endDate == (DateTime.MinValue);
+            if (itemContainsOnlyDescription) // only description
+                return string.Format("{0}||", this.description);
+            else if (itemContainsDateButNoTag) // no tag but has date
+                return string.Format("{0}||{1}", this.description, this.endDate);
+            else if (itemContainsTagButNoDate) // tag but no date
+                return string.Format("{0}|{1}|", this.description, "#" + this.tag);
+            else
+                return string.Format("{0}|{1}|{2}", this.description, "#" + this.tag, this.endDate);
+            /*
+            if (tag.Equals("misc") && endDate.Equals(DateTime.MinValue)) // only description
+                return string.Format("{0}||{1}", this.description, this.lastModifiedTime);
+            else if (tag.Equals("misc") && !endDate.Equals(DateTime.MinValue)) // no tag but has date
+                return string.Format("{0}||{1}||{2}", this.description, this.endDate, this.lastModifiedTime);
+            else if (!tag.Equals("misc") && endDate.Equals(DateTime.MinValue)) // tag but no date
+                return string.Format("{0}||{1}||{2}", this.description, "#" + this.tag, this.lastModifiedTime);
+            else if (id == string.Empty)
+                return string.Format("{0}||{1}||{2}", this.description, "#" + this.tag, this.endDate, this.lastModifiedTime);
+            else
+                return string.Format("{0}||{1}||{2}||{3}", this.description, "#" + this.tag, this.endDate, this.lastModifiedTime, this.id);
+            */
+        }
+
+        public override bool Equals(object obj)
+        {
+            GGItem otherGgItem = obj as GGItem;
+            bool isNotGGItemObject = otherGgItem == null;
+            if (isNotGGItemObject)
+            {
+                Debug.WriteLine("GGItem.Equals: Object passed in is not a GGItem object", "error");
+                return false;
+            }
+            return this.GetDescription().Equals(otherGgItem.GetDescription()) &&
+                        this.GetEndDate().Equals(otherGgItem.GetEndDate()) &&
+                        this.GetTag().Equals(otherGgItem.GetTag());
+        }
+
+        #region IComparable<GGItem> Members
+
+        public int CompareTo(GGItem otherItem)
+        {
+            if((this.endDate < otherItem.endDate))
+            {
+                return -1;
+            }
+            else if (this.endDate > otherItem.endDate)
+            {
+                return 1;
+            }
+            else // they are equal
+            {
+                return this.description.CompareTo(otherItem.description);
+            }
+        }
+
+        #endregion
+    }
+
+}

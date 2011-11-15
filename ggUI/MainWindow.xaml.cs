@@ -395,7 +395,7 @@ namespace ggUI
                    {
                        if (WindowShowing) ShowHideOptions();
                    }
-                   else if (IsDown(VK_SHIFT) && ki.vkCode == vkKey(Key.F9))
+                   else if (ki.vkCode == vkKey(Key.F1))
                    {
                        if (WindowShowing && !InTutorialMode)
                        {
@@ -1153,14 +1153,14 @@ namespace ggUI
                     return;
                 }
 
-                //GGResult result = CmdInvoker.InvokeCommand(txtCmdLine.Text);
-                //HandleCmd(result);
-                               
+                GGResult result = CmdInvoker.InvokeCommand(txtCmdLine.Text);
+                HandleCmd(result);
+                /*               
                 BackgroundWorker bw = new BackgroundWorker();
                 bw.DoWork += BW_DoWork;
                 bw.RunWorkerCompleted += BW_Completed;
                 bw.RunWorkerAsync(txtCmdLine.Text);
-                HistoryList.Add(txtCmdLine.Text);
+                HistoryList.Add(txtCmdLine.Text);*/
                 if (HistoryList.Count > 10) HistoryList.RemoveAt(0);
                 HistoryListIndex = 0;
                 txtCmdLine.Text = "";
@@ -1168,6 +1168,7 @@ namespace ggUI
           
         }
 
+        
         public void HandleCmd(GGResult result)
         {
             txtError.Clear();

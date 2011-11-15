@@ -1,0 +1,455 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using Google.GData.Calendar;
+using Google.GData.Extensions;
+using Google.GData.Client;
+using System.Diagnostics;
+
+namespace gg
+{
+    /// <summary>
+    /// GGSync handles the synchronization with Google Calendar 
+    /// author: Zi Wei
+    /// </summary>
+    class GGSync
+    {
+        private string username = string.Empty;
+        private string password = string.Empty;
+
+        /// <summary>
+        /// GG calendar configuration
+        /// </summary>
+        private const string GG_CALENDAR_TITLE = "GG To-do List";
+        private const string GG_CALENDAR_SUMMARY = "Simple, Fast, Easy.";
+        private const string GG_CALENDAR_TIMEZONE = "Asia/Singapore";
+        private const bool GG_CALENDAR_HIDDEN = false;
+        private const string GG_CALENDAR_COLOR = "#2952A3";
+        private const string GG_CALENDAR_LOCATION = "Oakland";
+
+        private const string CALENDAR_QUERY_URL = "https://www.google.com/calendar/feeds/default/owncalendars/full";
+
+        /// <summary>
+        /// Debug mode flag
+        /// </summary>
+        private bool debug = false;
+
+        /// <summary>
+        /// Console print method
+        /// </summary>
+        /// <param name="msg">Message to be print</param>
+        private void Log(string msg)
+        {
+            if (debug)
+                Debug.WriteLine(msg, "info");
+        }
+
+        /// <summary>
+        /// Create a GGSync instance
+        /// </summary>
+        /// <param name="username">Gmail address</param>
+        /// <param name="password">Gmail password</param>
+        public GGSync(string username, string password)
+        {
+            this.username = username;
+            this.password = password;
+        }
+
+        /// <summary>
+        /// Synchronize GGList with Google Calendar
+        /// Solve confict according to the last modified time
+        /// </summary>
+        /// <param name="userName">Gmail address</param>
+        /// <param name="password">Gmail password</param>
+        /// <param name="ggList">GGList to be synchronized</param>
+        public bool SyncWithGoogleCalendar(GGList ggList)
+        {
+            try
+            {
+                List<GGItem> addToLocal;
+                List<GGItem> removeFromLocal;
+                CalendarService GGService;
+                CalendarEntry GGCalendar;
+                EventFeed GGEvents;
+                List<bool> server;
+                List<GGItem> toBeSyncedList;
+                List<GGItem> toBeDeletedList;
+
+                // Prepare for synchronization
+                PrepareForSync(ggList, out addToLocal, out removeFromLocal, out GGService, out GGCalendar, out GGEvents, out server, out toBeSyncedList, out toBeDeletedList);
+
+                Log("GGSync: username: " + username);
+
+                Log("\nFor loop through deleted list:\n");
+                // Loop through toBeDeletedList
+                for (int i = 0; i < toBeDeletedList.Count; i++)
+                {
+                    GGItem ggItem = toBeDeletedList[i];
+                    Log("\nNow at: " + ggItem.ToString() + "\n");
+                    DeleteEvents(GGEvents, server, ggItem);
+                }
+
+                Log("For loop through local list\n");
+                // Loop through toBeSyncedList
+                for (int i = 0; i < toBeSyncedList.Count; i++)
+                {
+                    GGItem ggItem = toBeSyncedList[i];
+                    Log("\nNow at: " + ggItem.ToString() + "\n");
+                    SyncFromLocalToServer(addToLocal, removeFromLocal, GGService, GGCalendar, GGEvents, server, ggItem);
+                }
+
+                Log("\nFor loop through the rest server list\n");
+                SyncFromServerToLocal(addToLocal, GGEvents, server);
+
+                Log("\n Sync addToLocal and removeFromLocal with GGList");
+                UpdateLocalList(addToLocal, removeFromLocal, ggList, toBeDeletedList);
+
+                Log("GGSync: " + username + "'s sync successful");
+                return true;
+            }
+            catch (Google.GData.Client.CaptchaRequiredException e)
+            {
+                Debug.WriteLine("GGSync.SyncWithGoogleCalendar: " + e.Message);
+                return false;
+            }
+            catch (Google.GData.Client.InvalidCredentialsException e)
+            {
+                Debug.WriteLine("GGSync.SyncWithGoogleCalendar: " + e.Message);
+                return false;
+            }
+            catch (Google.GData.Client.GDataRequestException e)
+            {
+                Debug.WriteLine("GGSync.SyncWithGoogleCalendar: " + e.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Prepare for synchronization
+        /// </summary>
+        /// <param name="ggList">Local GGList</param>
+        /// <param name="addToLocal">List of GGItems to be added to local GGList</param>
+        /// <param name="removeFromLocal">List of GGItems to be removed from local GGList</param>
+        /// <param name="GGService">Google calendar service object</param>
+        /// <param name="GGCalendar">GG calendar</param>
+        /// <param name="GGEvents">Google event query results</param>
+        /// <param name="server">List of bools to indicate if a Google event has a local version</param>
+        /// <param name="toBeSyncedList">List of GGItems to be synced</param>
+        /// <param name="toBeDeletedList">List of GGItems to be deleted on Google calendar</param>
+        private void PrepareForSync(GGList ggList, out List<GGItem> addToLocal, out List<GGItem> removeFromLocal, out CalendarService GGService, out CalendarEntry GGCalendar, out EventFeed GGEvents, out List<bool> server, out List<GGItem> toBeSyncedList, out List<GGItem> toBeDeletedList)
+        {
+            // List of GGItems to be add to local GGList
+            addToLocal = new List<GGItem>();
+            // List of GGItems to be removed from local GGList
+            removeFromLocal = new List<GGItem>();
+
+            // Create Google calendar service object
+            GGService = new CalendarService("GG");
+            // Set credentials
+            GGService.setUserCredentials(username, password);
+
+            // Select GG calendar, create one if not exists
+            GGCalendar = SelectGGCalendar(GGService);
+            if (GGCalendar == null)
+            {
+                GGCalendar = CreateGGCalendar(GGService);
+            }
+
+            Log("operate on calender: " + GGCalendar.Title.Text);
+
+            // Query and get all events on GG calendar
+            EventQuery q = new EventQuery();
+            q.Uri = new Uri("https://www.google.com/calendar/feeds/" + GGCalendar.Id.AbsoluteUri.Substring(63) + "/private/full");
+            GGEvents = GGService.Query(q);
+
+            // True if a Google event has a coresponding GGItem
+            server = new List<bool>();
+            for (int i = 0; i < GGEvents.Entries.Count; i++)
+            {
+                server.Add(false);
+            }
+
+            toBeSyncedList = ggList.GetInnerList();
+            toBeDeletedList = ggList.GetDeletedList();
+        }
+
+        /// <summary>
+        /// Sync local GGItem to GG calendar
+        /// </summary>
+        /// <param name="addToLocal">List of GGItems to be added to local GGList</param>
+        /// <param name="removeFromLocal">List of GGItems to be removed from local GGList</param>
+        /// <param name="GGService">Google calendar service object</param>
+        /// <param name="GGCalendar">GG calendar</param>
+        /// <param name="GGEvents">Google event query results</param>
+        /// <param name="server">List of bools to indicate if a Google event has a local version</param>
+        /// <param name="ggItem">The local GGItem to be synced</param>
+        private void SyncFromLocalToServer(List<GGItem> addToLocal, List<GGItem> removeFromLocal, CalendarService GGService, CalendarEntry GGCalendar, EventFeed GGEvents, List<bool> server, GGItem ggItem)
+        {
+            if (ggItem.GetEventAbsoluteUrl() == String.Empty)
+            {   // Not synced : add to GG Calendar
+                Log("Never synced");
+                ggItem.SetEventAbsoluteUrl(AddGGEvent(GGService, GGCalendar, ggItem));
+                Log("Add to server: " + ggItem.ToString());
+            }
+            else
+            {   // Synced before
+                Log("Synced before");
+                string id = ggItem.GetEventAbsoluteUrl();
+
+                // Find the coresponding Google event
+                AtomEntry theEvent = FindGoogleEvent(GGEvents, server, id);
+
+                if (theEvent == null)
+                {   // Not found: deleted on GG calendar : remove from local list
+                    Log("Event is deleted on server");
+                    removeFromLocal.Add(ggItem);
+                    Log("Removed in local list");
+                }
+                else
+                {   // Found
+                    SolveConflict(addToLocal, removeFromLocal, GGService, GGCalendar, ggItem, theEvent);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sync GG calendar events to local list
+        /// </summary>
+        /// <param name="addToLocal">List of GGItems to be added to local GGList</param>
+        /// <param name="GGEvents">Google event query results</param>
+        /// <param name="server">List of bools to indicate if a Google event has a local version</param>
+        private void SyncFromServerToLocal(List<GGItem> addToLocal, EventFeed GGEvents, List<bool> server)
+        {
+            // Loop through Google events
+            for (int i = 0; i < GGEvents.Entries.Count; i++)
+            {
+                if (!server[i])
+                {   // Google event does not has a local version, create on GG calendar : add to local list
+                    EventEntry e = (EventEntry)GGEvents.Entries[i];
+                    GGItem newGGItem = new GGItem(e.Content.Content, e.Times[0].EndTime, e.Title.Text, DateTime.Parse(e.Updated.ToLongTimeString()), e.Id.AbsoluteUri);
+                    addToLocal.Add(newGGItem);
+                    Log("Add to local: " + newGGItem.ToString());
+                }
+            }
+        }
+
+        /// <summary>
+        /// Update GGList
+        /// </summary>
+        /// <param name="addToLocal">List of GGItems to be added to local GGList</param>
+        /// <param name="removeFromLocal">List of GGItems to be removed from local GGList</param>
+        /// <param name="toBeSyncedList">List of GGItems to be synced</param>
+        /// <param name="toBeDeletedList">List of GGItems to be deleted on Google calendar</param>
+        private void UpdateLocalList(List<GGItem> addToLocal, List<GGItem> removeFromLocal, GGList ggList, List<GGItem> toBeDeletedist)
+        {
+            for (int i = 0; i < removeFromLocal.Count; i++)
+            {
+                ggList.RemoveGGItem(removeFromLocal[i]);
+            }
+            for (int i = 0; i < addToLocal.Count; i++)
+            {
+                ggList.AddGGItem(addToLocal[i]);
+            }
+            toBeDeletedist.Clear();
+        }
+
+        /// <summary>
+        /// Find the coreponding Google event with specified ID
+        /// </summary>
+        /// <param name="GGEvents">Google event query results</param>
+        /// <param name="server">List of bools to indicate if a Google event has a local version</param>
+        /// <param name="id">ID of the Google event</param>
+        /// <returns></returns>
+        private AtomEntry FindGoogleEvent(EventFeed GGEvents, List<bool> server, string id)
+        {
+            AtomEntry theEvent = null;
+            for (int k = 0; k < GGEvents.Entries.Count; k++)
+            {
+                if (GGEvents.Entries[k].Id.AbsoluteUri == id)
+                {
+                    theEvent = GGEvents.Entries[k];
+                    server[k] = true;
+                    Log("Found");
+                    break;
+                }
+            }
+            return theEvent;
+        }
+
+        /// <summary>
+        /// Solve conflict by comparing last modified time
+        /// </summary>
+        /// <param name="addToLocal">List of GGItems to be added to local GGList</param>
+        /// <param name="removeFromLocal">List of GGItems to be removed from local GGList</param>
+        /// <param name="GGService">Google calendar service object</param>
+        /// <param name="GGCalendar">GG calendar</param>
+        /// <param name="ggItem">The local GGItem to be compared</param>
+        /// <param name="theEvent">The Google event to be compared</param>
+        private void SolveConflict(List<GGItem> addToLocal, List<GGItem> removeFromLocal, CalendarService GGService, CalendarEntry GGCalendar, GGItem ggItem, AtomEntry theEvent)
+        {
+            if (theEvent.Updated.CompareTo(ggItem.GetLastModifiedTime()) < 0)
+            {   // Local is the latest version : delete on server, then add the latest one
+                Log("Local is the latest");
+                theEvent.Delete();
+                Log("Delete on server");
+                ggItem.SetEventAbsoluteUrl(AddGGEvent(GGService, GGCalendar, ggItem));
+                Log("Add to server: " + ggItem.ToString());
+            }
+            else
+            {   // Server is the latest version : delete on local, then add the latest one
+                Log("Server is the latest");
+                EventEntry e = (EventEntry)theEvent;
+                GGItem newGGItem = new GGItem(e.Content.Content, e.Times[0].EndTime, e.Title.Text, DateTime.Parse(e.Updated.ToLongTimeString()), e.Id.AbsoluteUri);
+                removeFromLocal.Add(ggItem);
+                addToLocal.Add(newGGItem);
+                Log("Update to lsocal: " + newGGItem.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Delete a event on Google calendar
+        /// </summary>
+        /// <param name="GGEvents">Google event query results</param>
+        /// <param name="server">List of bools to indicate if a Google event has a local version</param>
+        /// <param name="ggItem">local version of the Google Event</param>
+        private void DeleteEvents(EventFeed GGEvents, List<bool> server, GGItem ggItem)
+        {
+            if (ggItem.GetEventAbsoluteUrl().CompareTo(string.Empty) != 0)
+            {
+                AtomEntry theEvent = FindGoogleEvent(GGEvents, server, ggItem.GetEventAbsoluteUrl());
+                if (theEvent != null)
+                {
+                    theEvent.Delete();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Create GG calendar
+        /// </summary>
+        /// <param name="GGService">Google calendar service object</param>
+        /// <returns>created GG calendar</returns>
+        private CalendarEntry CreateGGCalendar(CalendarService GGService)
+        {
+            // Create a new calendar object and specify details
+            CalendarEntry calendar = new CalendarEntry();
+            calendar.Title.Text = GG_CALENDAR_TITLE;
+            calendar.Summary.Text = GG_CALENDAR_SUMMARY;
+            calendar.TimeZone = GG_CALENDAR_TIMEZONE;
+            calendar.Hidden = GG_CALENDAR_HIDDEN;
+            calendar.Color = GG_CALENDAR_COLOR;
+            calendar.Location = new Where("", "", GG_CALENDAR_LOCATION);
+
+            // Create on Google Calendar
+            Uri postUri = new Uri(CALENDAR_QUERY_URL);
+            CalendarEntry createdCalendar = (CalendarEntry)GGService.Insert(postUri, calendar);
+
+            Log("Create calendar: " + createdCalendar.Title.Text + "\n");
+
+            // return created calendar
+            return createdCalendar;
+
+        }
+
+        /// <summary>
+        /// Select GG calendar
+        /// </summary>
+        /// <param name="GGService">Google calendar service object</param>
+        /// <returns>selected GG calendar</returns>
+        private CalendarEntry SelectGGCalendar(CalendarService GGService)
+        {
+            // Query server to get all calendars
+            CalendarQuery query = new CalendarQuery();
+            query.Uri = new Uri(CALENDAR_QUERY_URL);
+            CalendarFeed resultFeed = (CalendarFeed)GGService.Query(query);
+
+            Log("Your calendars:\n");
+
+            foreach (CalendarEntry entry in resultFeed.Entries)
+            {
+                Log(entry.Title.Text + "\n");
+                if (entry.Title.Text == "GG To-do List")
+                {
+                    // Return GG calendar
+                    return entry;
+                }
+            }
+
+            // GG calendar does not exist
+            return null;
+        }
+
+        /// <summary>
+        /// Delete duplicate GG calendar
+        /// </summary>
+        /// <param name="GGService">Google calendar service object</param>
+        private void DeleteGGCalendar(CalendarService GGService)
+        {
+            // Query server to get all calendars
+            CalendarQuery query = new CalendarQuery();
+            query.Uri = new Uri(CALENDAR_QUERY_URL);
+            CalendarFeed resultFeed = (CalendarFeed)GGService.Query(query);
+
+            foreach (CalendarEntry entry in resultFeed.Entries)
+            {
+                if (entry.Title.Text == GG_CALENDAR_TITLE)
+                {
+                    // Delete this calendar
+                    Log("Delete calendar: " + entry.Title.Text + "\n");
+                    entry.Delete();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add a local event to Google Calendar
+        /// </summary>
+        /// <param name="GGService">Google calendar service object</param>
+        /// <param name="GGCalendar">GG calendar object</param>
+        /// <param name="myGGItem">GGItem object to be added to GG calendar</param>
+        /// <returns>Google event's ID</returns>
+        private string AddGGEvent(CalendarService GGService, CalendarEntry GGCalendar, GGItem myGGItem)
+        {
+            // Create a event object
+            EventEntry entry = new EventEntry();
+
+            // Use description as event title (necessary)
+            entry.Title.Text = myGGItem.GetDescription();
+            // Use tag as event content (optional)
+            entry.Content.Content = myGGItem.GetTag();
+
+            // Set event start and end time
+            if (myGGItem.GetEndDate().CompareTo(GGItem.DEFAULT_ENDDATE) != 0)
+            {   // Specified endDate
+                // Use endDate - 2hours as start time and endDate as end time
+                When eventTime = new When(myGGItem.GetEndDate().AddHours(-2), myGGItem.GetEndDate());
+                entry.Times.Add(eventTime);
+            }
+            else
+            {   // Default endDate
+                // Treat as tasks, set due date as 3 days later
+                When eventTime = new When(DateTime.Today, DateTime.Today.AddDays(3));
+                entry.Times.Add(eventTime);
+            }
+
+
+            // Log(entry.Updated.ToLongDateString());
+
+            // Set email reminder: 15 minutes before end time
+            Reminder GGReminder = new Reminder();
+            GGReminder.Minutes = 15;
+            GGReminder.Method = Reminder.ReminderMethod.email;
+            entry.Reminders.Add(GGReminder);
+
+            // Create the event on Google Calendar
+            Uri postUri = new Uri("https://www.google.com/calendar/feeds/" + GGCalendar.Id.AbsoluteUri.Substring(63) + "/private/full");
+            AtomEntry insertedEntry = GGService.Insert(postUri, entry);
+
+            // Return the event's ID
+            return insertedEntry.Id.AbsoluteUri;
+        }
+
+    }
+
+}

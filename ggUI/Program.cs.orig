@@ -1,0 +1,24 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using ggUI.UnitTests;
+using System.Diagnostics;
+
+namespace gg
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            /*CLIApplication cliApp = new CLIApplication();
+            ApplicationRunner appRunner = new ApplicationRunner(cliApp);
+            appRunner.Run();
+            */
+
+            TestQuickParser testQP = new TestQuickParser();
+            
+            Console.ReadLine();
+        }
+    }
+}

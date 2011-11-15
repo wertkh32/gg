@@ -1,0 +1,220 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Diagnostics;
+
+namespace gg
+{
+    public class GGList
+    {
+        private List<GGItem> list;
+        private List<String> Tags;
+        private List<int> TagCount;
+        // for sync
+        private List<GGItem> deletedList;
+
+        public GGList()
+        {
+            list = new List<GGItem>();
+            Tags = new List<String>();
+            TagCount = new List<int>();
+            deletedList = new List<GGItem>();
+        }
+
+        private void UpdateTagListForNewItem(string TagOfNewItem)
+        {
+
+            if (!TagExists(TagOfNewItem))
+            {
+                Tags.Add(TagOfNewItem);
+                TagCount.Add(1);
+            }
+            else
+            {
+                int tagIndex = GetTagIndex(TagOfNewItem);
+
+                Debug.WriteLineIf(tagIndex < 0, "GGList.UpdateTagListForDeletedItem: tagIndex < 0");
+                Debug.Assert(tagIndex >= 0);
+
+                TagCount[tagIndex]++;
+
+            }
+        }
+
+        private void UpdateTagListForDeletedItem(string TagOfDeletedItem)
+        {
+            int tagIndex = -1;
+            tagIndex = GetTagIndex(TagOfDeletedItem);
+
+            Debug.WriteLineIf(tagIndex < 0, "GGList.UpdateTagListForDeletedItem: tagIndex < 0");
+            Debug.Assert(tagIndex >= 0);
+
+            if (TagCount[tagIndex] == 1)
+            {//remove tag and tag count
+                TagCount.RemoveAt(tagIndex);
+                Tags.RemoveAt(tagIndex);
+            }
+            else
+            {//update tag count
+                TagCount[tagIndex]--;
+            }
+        }
+
+        public int GetTagIndex(string TagToFind)
+        {
+            return Tags.FindIndex(
+                                     delegate(string Tag) { return Tag.CompareTo(TagToFind) == 0; }
+                                     );
+        }
+
+        public bool TagExists(string TagToFind)
+        {
+            return GetTagIndex(TagToFind) != -1;
+        }
+
+        public int GetTagCount(string TagToFind)
+        {
+            if (TagExists(TagToFind))
+                return TagCount[GetTagIndex(TagToFind)];
+            else return -1;
+        }
+
+        public List<string> GetTagList()
+        {
+            return Tags;
+        }
+
+        public List<int> GetTagCountList()
+        {
+            return TagCount;
+        }
+
+        public void AddGGItem(GGItem ggItem)
+        {
+            UpdateTagListForNewItem(ggItem.GetTag());
+            list.Add(ggItem);
+        }
+
+        public void RemoveGGItem(GGItem ggItem)
+        {
+            UpdateTagListForDeletedItem(ggItem.GetTag());
+            list.Remove(ggItem);
+            deletedList.Add(ggItem);
+        }
+
+        public int IndexOfGGItem(GGItem item)
+        {
+            return list.IndexOf(item);
+        }
+
+        public void InsertGGItem(int index, GGItem item)
+        {
+            UpdateTagListForNewItem(item.GetTag());
+            list.Insert(index, item);
+        }
+
+        public GGItem GetGGItemAt(int index)
+        {
+            return list[index];
+        }
+
+        public void SetGGItemAt(int index, GGItem newItem)
+        {
+            list[index] = newItem;
+        }
+
+        public void RemoveGGItemAt(int index)
+        {
+            UpdateTagListForDeletedItem(list.ElementAt(index).GetTag());
+            deletedList.Add(list[index]);
+            list.RemoveAt(index);
+        }
+
+        public void SortGGList()
+        {
+            list.Sort();
+        }
+
+        public int CountGGList()
+        {
+            return list.Count;
+        }
+
+        #region sync
+
+        public List<GGItem> GetInnerList()
+        {
+            return this.list;
+        }
+
+        public void SetInnerList(List<GGItem> list)
+        {
+            this.list = list;
+            for (int i = 0; i < list.Count; i++)
+            {
+                UpdateTagListForNewItem(list[i].GetTag());
+            }
+        }
+
+        public List<GGItem> GetDeletedList()
+        {
+            return this.deletedList;
+        }
+
+        public void SetDeletedList(List<GGItem> deletedList)
+        {
+            this.deletedList = deletedList;
+        }
+
+        #endregion
+
+        private void ClearGGList()
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                deletedList.Add(list[i]);
+            }
+            list.Clear();
+        }
+
+        public bool ContainsGGItem(GGItem item)
+        {
+            return list.Contains(item);
+        }
+
+        public void CopyToArray(GGItem[] array, int arrayIndex)
+        {
+            list.CopyTo(array, arrayIndex);
+        }
+        /*
+        public bool IsReadOnly
+        {
+            get { throw new NotImplementedException(); }
+        }
+        */
+        public IEnumerator<GGItem> GetEnumerator()
+        {
+            return list.GetEnumerator();
+        }
+
+        public override bool Equals(object obj)
+        {
+            GGList otherGgList = obj as GGList;
+            bool isNotGGListObject = otherGgList == null;
+            if (isNotGGListObject)
+            {
+                Debug.WriteLine("GGList.Equals: Object passed in is not a GGList object", "error");
+                return false;
+            }
+            for (int i = 0; i < this.CountGGList(); i++)
+            {
+                GGItem ggItem = this.GetGGItemAt(i);
+                GGItem otherGgItem = ((GGList)obj).GetGGItemAt(i);
+                if (!ggItem.Equals(otherGgItem))
+                    return false;
+            }
+            return true;
+        }
+    }
+}
