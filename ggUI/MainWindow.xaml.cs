@@ -84,6 +84,18 @@ namespace ggUI
        [DllImport("user32.dll")]
        static extern bool SetCursorPos(int X, int Y);
 
+       [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
+        static extern IntPtr GetForegroundWindow();
+       [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+       static extern int GetWindowThreadProcessId(int handle, out int processId);
+       [DllImport("user32", CharSet = CharSet.Ansi, SetLastError = true, ExactSpelling = true)]
+       static extern int AttachThreadInput(int idAttach, int idAttachTo, bool fAttach);
+       [DllImport("kernel32.dll")]
+       static extern int GetCurrentThreadId();
+       [DllImport("user32.dll")]
+       static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, uint dwExtraInfo);
+
+
        private const int MOUSEEVENTF_LEFTDOWN = 0x02;
        private const int MOUSEEVENTF_LEFTUP = 0x04;
        private const int MOUSEEVENTF_RIGHTDOWN = 0x08;
@@ -367,14 +379,63 @@ namespace ggUI
            }
            OptionsShowing = !OptionsShowing;
        }
+
+       private void SendCtrlC()
+       {
+           uint KEYEVENTF_KEYUP = 2;
+           byte VK_CONTROL = 0x11;
+           keybd_event(VK_CONTROL, 0, 0, 0);
+           keybd_event(0x43, 0, 0, 0); //Send the C key (43 is "C")
+           keybd_event(0x43, 0, KEYEVENTF_KEYUP, 0);
+           keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);// 'Left Control Up
+
+       }
+
+       private void SendCtrlV()
+       {
+           uint KEYEVENTF_KEYUP = 2;
+           byte VK_CONTROL = 0x11;
+           keybd_event(VK_CONTROL, 0, 0, 0);
+           keybd_event(0x56, 0, 0, 0); //Send the C key (43 is "C")
+           keybd_event(0x56, 0, KEYEVENTF_KEYUP, 0);
+           keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);// 'Left Control Up
+
+       }
+
+       private void GetSelectedText()
+       {
+           int activeWinPtr = GetForegroundWindow().ToInt32();
+           int activeThreadId = 0, processId;
+           activeThreadId = GetWindowThreadProcessId(activeWinPtr, out processId);
+           int currentThreadId = GetCurrentThreadId();
+           //String prev = txtCmdLine.Text;
+           if (activeThreadId != currentThreadId)
+           {
+               AttachThreadInput(activeThreadId, currentThreadId, true);
+               SendCtrlC();
+               txtCmdLine.Text = "a ";
+               txtCmdLine.CaretIndex = 2;
+               txtCmdLine.Focus();
+               SendCtrlV();
+               AttachThreadInput(activeThreadId, currentThreadId, false);
+               ShowHide();
+               //if (txtCmdLine.Text.Equals("a ")) txtCmdLine.Text = prev;
+           }
+                           
+       }
+
        public int HookDelegate(int nCode, int wParam, ref kbInfo lParam){
            if (nCode == 0)
            {
                kbInfo ki = (kbInfo)lParam;
                if (wParam == WM_KEYDOWN)
-                   if (ki.vkCode == vkKey(ShowHotkey))
+                   if (IsDown(VK_CONTROL) && ki.vkCode == vkKey(ShowHotkey))
                    {
-                       if (InTutorialMode && RTBIndex == TUTORIAL_PAGE_NO-1)
+                       GetSelectedText();
+                   }
+                   else if (ki.vkCode == vkKey(ShowHotkey))
+                   {
+                       if (InTutorialMode && RTBIndex == TUTORIAL_PAGE_NO - 1)
                        {
                            //showhide();
                            ShowAndHide();
@@ -382,6 +443,7 @@ namespace ggUI
                        }
                        else
                        {
+                           GetSelectedText();
                            ShowHide();
                            if (OptionsShowing) ShowHideOptions();
                        }
