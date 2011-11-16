@@ -443,7 +443,6 @@ namespace ggUI
                        }
                        else
                        {
-                           GetSelectedText();
                            ShowHide();
                            if (OptionsShowing) ShowHideOptions();
                        }
