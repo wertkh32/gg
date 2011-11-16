@@ -55,6 +55,11 @@ namespace gg
         {
             Debug.Assert(message != null && !message.Equals(string.Empty));
             return new GGResult(string.Empty, message, -1, resultType, tag);
+        }
+        public GGResult CreateResultInstance(string message, GGResult.RESULT_TYPE resultType, int itemindex,string tag = "")
+        {
+            Debug.Assert(message != null && !message.Equals(string.Empty));
+            return new GGResult(string.Empty, message, itemindex, resultType, tag);
         } 
     }
 

@@ -32,7 +32,7 @@ namespace gg
                 this.SetIsSuccessful(true);
                 string successMsg = string.Format(MESSAGE_ADD_SUCCESS, newGgItem.GetDescription());
                 Debug.WriteLine(successMsg, "info");
-                result = CreateResultInstance(successMsg, GGResult.RESULT_TYPE.RESULT_ADD, newGgItem.GetTag());
+                result = CreateResultInstance(successMsg, GGResult.RESULT_TYPE.RESULT_ADD, ggList.IndexOfGGItem(newGgItem),newGgItem.GetTag());
             }
             catch (Exception e)
             {

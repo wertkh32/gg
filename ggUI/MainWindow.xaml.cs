@@ -419,6 +419,20 @@ namespace ggUI
                SendCtrlV();
                AttachThreadInput(activeThreadId, currentThreadId, false);
                ShowHide();
+               if (Clipboard.ContainsFileDropList())
+               {
+                   for (int i = 0; i < Clipboard.GetFileDropList().Count; i++)
+                   {
+                       GGResult r;
+                       String f = new FileInfo(Clipboard.GetFileDropList()[i]).Name;
+                       if (f.Contains('.')) f = f.Substring(0, f.LastIndexOf('.'));
+                       r = CmdInvoker.InvokeCommand("a \"do " + f + "\"");
+                       GGItem gg = CmdInvoker.GetGGList().GetGGItemAt(r.GetItemIndex());
+                       HandleCmd(r);
+                       r = CmdInvoker.InvokeCommand("pin " + (CmdInvoker.GetGGList().IndexOfGGItem(gg) + 1) + " " + Clipboard.GetFileDropList()[i]);
+                       HandleCmd(r);
+                   }
+               }
                //if (txtCmdLine.Text.Equals("a ")) txtCmdLine.Text = prev;
            }
                            
