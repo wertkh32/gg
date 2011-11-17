@@ -413,24 +413,25 @@ namespace ggUI
            {
                AttachThreadInput(activeThreadId, currentThreadId, true);
                SendCtrlC();
-               txtCmdLine.Text = "a ";
-               txtCmdLine.CaretIndex = 2;
-               txtCmdLine.Focus();
-               SendCtrlV();
+               System.Threading.Thread.Sleep(10);
                AttachThreadInput(activeThreadId, currentThreadId, false);
                ShowHide();
-               if (Clipboard.ContainsFileDropList())
+               if (Clipboard.ContainsText())
+               {
+                        HandleCmd(CmdInvoker.InvokeCommand("a "+Clipboard.GetText().Replace(Environment.NewLine," ")));
+               }
+               else if (Clipboard.ContainsFileDropList())
                {
                    for (int i = 0; i < Clipboard.GetFileDropList().Count; i++)
                    {
                        GGResult r;
                        String f = new FileInfo(Clipboard.GetFileDropList()[i]).Name;
                        if (f.Contains('.')) f = f.Substring(0, f.LastIndexOf('.'));
-                       r = CmdInvoker.InvokeCommand("a \"do " + f + "\"");
+                       r = CmdInvoker.InvokeCommand("a \"" + f + "\"");
                        GGItem gg = CmdInvoker.GetGGList().GetGGItemAt(r.GetItemIndex());
                        HandleCmd(r);
-                       r = CmdInvoker.InvokeCommand("pin " + (CmdInvoker.GetGGList().IndexOfGGItem(gg) + 1) + " " + Clipboard.GetFileDropList()[i]);
-                       HandleCmd(r);
+                       HandleCmd(CmdInvoker.InvokeCommand("pin " + (CmdInvoker.GetGGList().IndexOfGGItem(gg) + 1) + " " + Clipboard.GetFileDropList()[i]));
+                      
                    }
                }
                //if (txtCmdLine.Text.Equals("a ")) txtCmdLine.Text = prev;
